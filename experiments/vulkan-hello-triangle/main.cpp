@@ -1,6 +1,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -109,6 +110,34 @@ checkValidationLayerSupport()
     return true;
 }
 
+std::vector<const char*>
+getRequiredExtensions()
+{
+    const char** glfwExtensions;
+
+    uint32_t glfwExtensionCount;
+
+    std::vector<const char*> extensions;
+
+    extensions = {};
+    glfwExtensions = 0;
+    glfwExtensionCount = 0;
+
+    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    for (uint32_t i = 0; i < glfwExtensionCount; i++) {
+        extensions.push_back( *(glfwExtensions + i) );
+    }
+
+    assert(extensions.size() == glfwExtensionCount);
+
+    if (g_enableValidationLayers) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+
+    return extensions;
+}
+
 void
 createVulkanInstance()
 {
@@ -116,12 +145,13 @@ createVulkanInstance()
     const std::string engineName = "No engine";
 
     uint32_t fullExtensionCount; // Set to amount of all supported extensions
-    uint32_t glfwExtensionCount;
-    const char** glfwExtensions;
 
     bool haveSupport;
 
     std::string msg;
+    std::vector<const char*> extensionsToRequest;
+
+    // Used for querying available extensions
     std::vector<VkExtensionProperties> extensions;
 
     VkResult result;
@@ -133,9 +163,8 @@ createVulkanInstance()
     appInfo = {};
     createInfo = {};
     haveSupport = false;
-    glfwExtensions = 0;
-    glfwExtensionCount = 0;
     fullExtensionCount = 0;
+    extensionsToRequest = {};
 
     if (g_enableValidationLayers) {
         haveSupport = checkValidationLayerSupport();
@@ -144,7 +173,7 @@ createVulkanInstance()
         }
     }
 
-    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    extensionsToRequest = getRequiredExtensions();
 
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = applicationName.c_str();
@@ -155,8 +184,8 @@ createVulkanInstance()
 
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledExtensionCount = glfwExtensionCount;
-    createInfo.ppEnabledExtensionNames = glfwExtensions;
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensionsToRequest.size());
+    createInfo.ppEnabledExtensionNames = extensionsToRequest.data();
 
     createInfo.enabledLayerCount = 0; // Default to no validation layers
     if (g_enableValidationLayers) {
