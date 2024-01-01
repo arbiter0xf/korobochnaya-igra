@@ -2,9 +2,21 @@
 #include <GLFW/glfw3.h>
 
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+
+const std::vector< const char*> g_validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+#ifndef NDEBUG
+const bool g_enableValidationLayers = true;
+#endif
+#ifdef NDEBUG
+const bool g_enableValidationLayers = false;
+#endif
 
 class HelloTriangleApplication {
 
@@ -46,6 +58,57 @@ initWindow()
             nullptr);
 }
 
+bool
+supportForLayer(
+        const char* requestedLayer,
+        std::vector<VkLayerProperties>& availableLayers)
+{
+    uint32_t ret;
+    size_t layerNameMaxLen;
+
+    ret = -1;
+    layerNameMaxLen = 128;
+
+    for (const VkLayerProperties& available : availableLayers) {
+        ret = strncmp(requestedLayer, available.layerName, layerNameMaxLen);
+        if (0 == ret) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+checkValidationLayerSupport()
+{
+    bool haveSupport;
+    uint32_t layerCount;
+
+    std::vector<VkLayerProperties> availableLayers;
+
+    layerCount = 0;
+    haveSupport = false;
+
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    availableLayers.resize(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    for (const char* requestedLayer : g_validationLayers) {
+        haveSupport = supportForLayer(requestedLayer, availableLayers);
+        if ( ! haveSupport) {
+            std::cerr
+                << "Missing support for validation layer: "
+                << requestedLayer
+                << '\n';
+
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void
 createVulkanInstance()
 {
@@ -56,18 +119,30 @@ createVulkanInstance()
     uint32_t glfwExtensionCount;
     const char** glfwExtensions;
 
+    bool haveSupport;
+
+    std::string msg;
     std::vector<VkExtensionProperties> extensions;
 
     VkResult result;
     VkApplicationInfo appInfo;
     VkInstanceCreateInfo createInfo;
 
+    msg = "";
     result = VK_ERROR_UNKNOWN;
     appInfo = {};
     createInfo = {};
+    haveSupport = false;
     glfwExtensions = 0;
     glfwExtensionCount = 0;
     fullExtensionCount = 0;
+
+    if (g_enableValidationLayers) {
+        haveSupport = checkValidationLayerSupport();
+        if ( ! haveSupport) {
+            throw std::runtime_error("[!] Validation layers requested, but not available.");
+        }
+    }
 
     glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
@@ -82,7 +157,12 @@ createVulkanInstance()
     createInfo.pApplicationInfo = &appInfo;
     createInfo.enabledExtensionCount = glfwExtensionCount;
     createInfo.ppEnabledExtensionNames = glfwExtensions;
-    createInfo.enabledLayerCount = 0;
+
+    createInfo.enabledLayerCount = 0; // Default to no validation layers
+    if (g_enableValidationLayers) {
+        createInfo.enabledLayerCount = static_cast<uint32_t>(g_validationLayers.size());
+        createInfo.ppEnabledLayerNames = g_validationLayers.data();
+    }
 
     vkEnumerateInstanceExtensionProperties(nullptr, &fullExtensionCount, nullptr);
     extensions.resize(fullExtensionCount);
@@ -95,7 +175,10 @@ createVulkanInstance()
 
     result = vkCreateInstance(&createInfo, nullptr, &vulkanInstance);
     if (VK_SUCCESS != result) {
-        throw std::runtime_error("Failed to create Vulkan instance.");
+        msg = "[!] Failed to create Vulkan instance. (";
+        msg += result;
+        msg += ")";
+        throw std::runtime_error(msg.c_str());
     }
 
     std::cout << "Vulkan instance created." << std::endl;
