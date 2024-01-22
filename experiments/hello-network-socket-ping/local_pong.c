@@ -25,9 +25,10 @@ prepare_for_bind_server(struct sockaddr_un* addr_ptr, const char* sock_path)
     memset(error_message, 0, SIZE_ERROR_MESSAGE);
 
     if (strlen(sock_path) > sizeof(addr_ptr->sun_path) - 1) {
-        sscanf(
+        snprintf(
                 error_message,
-                "Socket path is too long (%d characters)",
+                SIZE_ERROR_MESSAGE,
+                "Socket path is too long (%lu characters)",
                 strlen(sock_path));
         error_message[255] = '\0';
         print_error(error_message);
@@ -38,8 +39,9 @@ prepare_for_bind_server(struct sockaddr_un* addr_ptr, const char* sock_path)
     ret = remove(sock_path);
     if (-1 == ret && ENOENT != errno) {
         perror("Failed to remove file");
-        sscanf(
+        snprintf(
                 error_message,
+                SIZE_ERROR_MESSAGE,
                 "Failed to remove file, using path: %s",
                 sock_path);
         error_message[255] = '\0';
