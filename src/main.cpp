@@ -1040,6 +1040,75 @@ create_command_pool(
     return command_pool;
 }
 
+static VkCommandBuffer
+create_command_buffer(
+        const VkDevice& logical_device,
+        const VkCommandPool& command_pool)
+{
+    VkResult result;
+    VkCommandBuffer command_buffer;
+    VkCommandBufferAllocateInfo allocate_info;
+
+    result = VK_ERROR_UNKNOWN;
+    allocate_info = {};
+
+    allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocate_info.commandPool = command_pool;
+    allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocate_info.commandBufferCount = 1;
+
+    result = vkAllocateCommandBuffers(
+            logical_device,
+            &allocate_info,
+            &command_buffer);
+    if (VK_SUCCESS != result) {
+        throw std::runtime_error("Failed to allocate command buffers");;
+    }
+
+    return command_buffer;
+}
+
+static void
+record_command_buffer(
+        const VkCommandBuffer command_buffer,
+        uint32_t image_index,
+        const VkRenderPass& render_pass,
+        const std::vector<VkFramebuffer>& swapchain_framebuffers,
+        const VkExtent2D& swapchain_extent)
+{
+    VkResult result;
+    VkCommandBufferBeginInfo begin_info;
+    VkRenderPassBeginInfo render_pass_info;
+    VkClearValue clear_color;
+
+    result = VK_ERROR_UNKNOWN;
+    begin_info = {};
+    render_pass_info = {};
+    clear_color = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = 0;
+    begin_info.pInheritanceInfo = nullptr;
+
+    result = vkBeginCommandBuffer(command_buffer, &begin_info);
+    if (VK_SUCCESS != result) {
+        throw std::runtime_error("Failed to begin recording a command buffer");
+    }
+
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_info.renderPass = render_pass;
+    render_pass_info.framebuffer = swapchain_framebuffers[image_index];
+    render_pass_info.renderArea.offset = {0, 0};
+    render_pass_info.renderArea.extent = swapchain_extent;
+    render_pass_info.clearValueCount = 1;
+    render_pass_info.pClearValues = &clear_color;
+
+    vkCmdBeginRenderPass(
+            command_buffer,
+            &render_pass_info,
+            VK_SUBPASS_CONTENTS_INLINE)
+}
+
 static void
 game(void)
 {
@@ -1082,6 +1151,7 @@ game(void)
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;
     VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
 
     std::vector<VkImageView> swapchain_image_views;
     std::vector<VkImage> swapchain_images;
@@ -1259,6 +1329,10 @@ game(void)
     command_pool = create_command_pool(
             logical_device,
             family_indices);
+
+    command_buffer = create_command_buffer(
+            logical_device,
+            command_pool);
 
     // SDL createMainRenderer # <- necessary here?
 
